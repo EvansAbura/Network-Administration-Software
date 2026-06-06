@@ -1,0 +1,6 @@
+{
+  "name": "NOC Network Administrator",
+  "description": "Enterprise-grade Network Operations Center (NOC) system for managing, monitoring, securing, and visualizing complex network infrastructures in real-time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
