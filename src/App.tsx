@@ -17,6 +17,8 @@ import TopologyMap from "./components/TopologyMap";
 import SecurityConsole from "./components/SecurityConsole";
 import AlertsManager from "./components/AlertsManager";
 import LogsExplorer from "./components/LogsExplorer";
+import ConfigManager from "./components/ConfigManager";
+import SNMPTrapConsole from "./components/SNMPTrapConsole";
 
 // Icons 
 import { 
@@ -392,6 +394,32 @@ export default function App() {
               Topology
             </button>
 
+            {/* Config System Workspace */}
+            <button
+              onClick={() => setActiveTab("configs")}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium cursor-pointer transition-colors ${
+                activeTab === "configs" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              }`}
+            >
+              <Database className="h-4 w-4 shrink-0 opacity-70" />
+              Configs
+            </button>
+
+            {/* SNMP Trap Incident Receiver */}
+            <button
+              onClick={() => setActiveTab("snmp")}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium cursor-pointer transition-colors ${
+                activeTab === "snmp" 
+                  ? "bg-indigo-600/10 text-indigo-400" 
+                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              }`}
+            >
+              <BellRing className="h-4 w-4 shrink-0 opacity-70 animate-pulse text-amber-400" />
+              SNMP Traps
+            </button>
+
             {/* Nav 4 */}
             <button
               onClick={() => setActiveTab("alerts")}
@@ -583,6 +611,22 @@ export default function App() {
           {activeTab === "logs" && (
             <LogsExplorer 
               logs={logs}
+              onRefreshAll={fetchAllTelemetry}
+            />
+          )}
+
+          {activeTab === "configs" && (
+            <ConfigManager 
+              devices={devices}
+              role={currentUser.role}
+              onRefreshAll={fetchAllTelemetry}
+            />
+          )}
+
+          {activeTab === "snmp" && (
+            <SNMPTrapConsole 
+              devices={devices}
+              role={currentUser.role}
               onRefreshAll={fetchAllTelemetry}
             />
           )}

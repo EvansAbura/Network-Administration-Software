@@ -11,7 +11,11 @@ import {
   ThresholdConfig, 
   UserRole,
   TopologyNode,
-  TopologyLink
+  TopologyLink,
+  DeviceConfig,
+  SNMPTrap,
+  TrapOidMapping,
+  AlertSeverity
 } from "./src/types";
 
 dotenv.config();
@@ -513,6 +517,212 @@ setInterval(() => {
   });
 
 }, 5000);
+
+
+// ==========================================
+// CONFIGURATION MANAGEMENT DATA STRUCTURES
+// ==========================================
+let deviceConfigs: DeviceConfig[] = [
+  {
+    id: "cfg-1",
+    deviceId: "dev-1",
+    deviceName: "Edge-Firewall-Gwy",
+    deviceIp: "10.0.0.1",
+    version: 1,
+    timestamp: new Date(Date.now() - 3600 * 1000 * 48).toISOString(),
+    protocol: "SSH",
+    content: `! Edge-Firewall-Gwy - Dynamic Backup Version 1
+! Built: 2026-06-04T00:51:00Z
+hostname Edge-Firewall-Gwy
+!
+interface GigabitEthernet0/0
+ description WAN-Outside-Interface
+ ip address 203.0.113.1 255.255.255.248
+!
+interface GigabitEthernet0/1
+ description LAN-Inside-Interface
+ ip address 10.0.0.1 255.255.255.0
+!
+access-list OUTSIDE-IN permit tcp any host 10.0.0.1 eq 443
+access-list OUTSIDE-IN permit tcp any host 10.0.0.1 eq 80
+access-list OUTSIDE-IN deny tcp any any eq 22
+!
+logging host 10.0.1.20`,
+    backupBy: "Admin",
+    comment: "Initial security baseline snapshot configuration",
+    active: false
+  },
+  {
+    id: "cfg-2",
+    deviceId: "dev-1",
+    deviceName: "Edge-Firewall-Gwy",
+    deviceIp: "10.0.0.1",
+    version: 2,
+    timestamp: new Date(Date.now() - 3600 * 1000 * 2).toISOString(),
+    protocol: "SSH",
+    content: `! Edge-Firewall-Gwy - Dynamic Backup Version 2
+! Built: 2026-06-06T00:01:00Z
+hostname Edge-Firewall-Gwy
+!
+interface GigabitEthernet0/0
+ description WAN-Outside-Interface
+ ip address 203.0.113.1 255.255.255.248
+!
+interface GigabitEthernet0/1
+ description LAN-Inside-Interface
+ ip address 10.0.0.1 255.255.255.0
+!
+! Update: Block malicious TOR IP Range
+access-list OUTSIDE-IN deny tcp 185.220.101.0/24 any
+access-list OUTSIDE-IN permit tcp any host 10.0.0.1 eq 443
+access-list OUTSIDE-IN permit tcp any host 10.0.0.1 eq 80
+access-list OUTSIDE-IN deny tcp any any eq 22
+!
+logging host 10.0.1.20`,
+    backupBy: "Admin",
+    comment: "Blocked rogue TOR relay 185.220.101.0/24 in access-list filter",
+    active: true
+  },
+  {
+    id: "cfg-3",
+    deviceId: "dev-2",
+    deviceName: "Core-Router-GW-01",
+    deviceIp: "10.0.0.254",
+    version: 1,
+    timestamp: new Date(Date.now() - 3600 * 1000 * 24).toISOString(),
+    protocol: "SSH",
+    content: `! Core-Router-GW-01 Configuration Version 1
+hostname Core-Router-GW-01
+!
+router bgp 65001
+ no synchronization
+ bgp log-neighbor-changes
+ neighbor 172.16.0.1 remote-as 65002
+ neighbor 172.16.0.1 description Core ISP Transit Peer
+ neighbor 192.168.10.1 remote-as 65001
+ neighbor 192.168.10.1 description Backup Router Link
+!
+interface TenGigabitEthernet0/1
+ description Trunk connection to Distribution switch Zone-A
+ ip address 10.0.0.254 255.255.0.0
+!
+snmp-server community routingPublic RO 10
+access-list 10 permit 10.0.0.0 0.0.255.255`,
+    backupBy: "Network Engineer",
+    comment: "BGP transit border configurations",
+    active: true
+  },
+  {
+    id: "cfg-4",
+    deviceId: "dev-3",
+    deviceName: "Distribution-Switch-ZoneA",
+    deviceIp: "10.0.1.1",
+    version: 1,
+    timestamp: new Date(Date.now() - 3600 * 1000 * 12).toISOString(),
+    protocol: "TFTP",
+    content: `! Distribution-Switch-ZoneA Configuration Version 1
+hostname Distribution-Switch-ZoneA
+!
+vlan 10
+ name Security-Ops
+vlan 20
+ name Engineering-Zone
+vlan 30
+ name Facilities-IoT
+!
+spanning-tree mode rapid-pvst
+spanning-tree portfast defaults
+!
+interface GigabitEthernet0/1
+ switchport mode trunk
+!
+snmp-server community private RW`,
+    backupBy: "Admin",
+    comment: "VLAN mapping and rapid-spanning tree configuration setup",
+    active: true
+  }
+];
+
+// ==========================================
+// SNMP TRAP DATA STRUCTURES & MIB OIDS
+// ==========================================
+let receivedTraps: SNMPTrap[] = [
+  {
+    id: "trap-1",
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    deviceId: "dev-2",
+    deviceName: "Core-Router-GW-01",
+    deviceIp: "10.0.0.254",
+    severity: "medium",
+    version: "v2c",
+    enterpriseOid: "1.3.6.1.4.1.9.9.43.1.1.1",
+    message: "SNMP Config change event: running config state modified by CLI session",
+    parsedDescription: "CISCO-CONFIG-COPY-MIB: Config copy state modified. Indicates an administrator changed configuration via telnet/ssh."
+  },
+  {
+    id: "trap-2",
+    timestamp: new Date(Date.now() - 1800000).toISOString(),
+    deviceId: "dev-1",
+    deviceName: "Edge-Firewall-Gwy",
+    deviceIp: "10.0.0.1",
+    severity: "critical",
+    version: "v3",
+    enterpriseOid: "1.3.6.1.6.3.1.1.5.3",
+    message: "SNMP Trap: Link down event on WAN Port Gi0/0 (physical error detected)",
+    parsedDescription: "IF-MIB: Link Down. Indicates a physical or logical link transition into down state."
+  }
+];
+
+const TRAP_MAPPINGS: TrapOidMapping[] = [
+  {
+    oid: "1.3.6.1.6.3.1.1.5.3",
+    name: "linkDown",
+    description: "IF-MIB: Link Down trap. A physical port or logical trunk interface has transitioned into a down state.",
+    defaultSeverity: "critical"
+  },
+  {
+    oid: "1.3.6.1.6.3.1.1.5.4",
+    name: "linkUp",
+    description: "IF-MIB: Link Up trap. A previously degraded physical port has successfully re-established transport synchronizations.",
+    defaultSeverity: "low"
+  },
+  {
+    oid: "1.3.6.1.4.1.9.9.43.1.1.1",
+    name: "ccCopyStateChange",
+    description: "CISCO-CONFIG-COPY-MIB: Configuration State Copy completed. Signals a backup event or running-to-startup flash synchronization.",
+    defaultSeverity: "medium"
+  },
+  {
+    oid: "1.3.6.1.6.3.1.1.5.1",
+    name: "coldStart",
+    description: "SNMPv2-MIB: Cold Start. The network device core controller has reinitialized or rebooted completely due to a power loss cycle.",
+    defaultSeverity: "critical"
+  },
+  {
+    oid: "1.3.6.1.6.3.1.1.5.2",
+    name: "warmStart",
+    description: "SNMPv2-MIB: Warm Start. The network device has reloaded its software execution kernel while maintaining electrical and physical links.",
+    defaultSeverity: "high"
+  },
+  {
+    oid: "1.3.6.1.4.1.9.9.109.1.1.1",
+    name: "ciscoCpuThresholdExceeded",
+    description: "CISCO-PROCESS-MIB: CPU usage threshold exceeded limit. Hardware plane processing tasks are saturated, causing delayed packets routing.",
+    defaultSeverity: "high"
+  },
+  {
+    oid: "1.3.6.1.4.1.1991.1.1.2.1.2",
+    name: "bgpPeerTransitFailure",
+    description: "BGP4-MIB: BGP Peer Connection State Failure. Border Gateway Protocol peer routing adjacent connection has failed or lost BGP Keepalives.",
+    defaultSeverity: "critical"
+  },
+  {
+    oid: "1.3.6.1.4.1.9.9.41.1.2",
+    name: "clogMessageGenerated",
+    description: "CISCO-SYSLOG-MIB: Device internal syslog error generator. Emitted when critical buffer levels or cooling fan sensors fail.",
+    defaultSeverity: "medium"
+  }
+];
 
 
 // API ENDPOINTS
@@ -1044,6 +1254,216 @@ app.get("/api/logs/export", (req, res) => {
   res.setHeader("Content-Disposition", "attachment; filename=noc_audit_logs.csv");
   res.send(csvContent);
 });
+
+
+// ==========================================
+// CONFIGURATION MANAGEMENT APIS
+// ==========================================
+app.get("/api/configs", (req, res) => {
+  res.json(deviceConfigs);
+});
+
+app.post("/api/configs/backup", (req, res) => {
+  if (adminRole === 'Viewer') {
+    return res.status(403).json({ error: "Unauthorized. Viewers cannot trigger config backups." });
+  }
+
+  const { deviceId, protocol, comment } = req.body;
+  if (!deviceId || !protocol) {
+    return res.status(400).json({ error: "Device ID and backup protocol are required." });
+  }
+
+  const device = devices.find(d => d.id === deviceId);
+  if (!device) {
+    return res.status(404).json({ error: "Device not found." });
+  }
+
+  // Calculate new design version
+  const prevConfigs = deviceConfigs.filter(c => c.deviceId === deviceId);
+  const nextVer = prevConfigs.length > 0 ? Math.max(...prevConfigs.map(c => c.version)) + 1 : 1;
+
+  // Build simulated Cisco IOS or Juniper config file based on device details
+  const configContent = `! ${device.name} Running Configuration Dump
+! Version ${nextVer} - Backup retrieved via ${protocol}
+! Timestamp: ${new Date().toISOString()}
+hostname ${device.name}
+!
+interface GigabitEthernet0/1
+ description Inbound interface for ${device.department}
+ ip address ${device.ip} 255.255.255.0
+ speed auto
+ duplex auto
+!
+${device.type === 'firewall' ? 'security-policy zone inside\nsecurity-policy zone outside\nsecurity-policy rulepermit port 443\nsecurity-policy rulepermit port 80\nsecurity-policy rulestop ssh' : ''}
+${device.type === 'router' ? 'router ospf 100\n network 10.0.0.0 0.255.255.255 area 0\n redistribute connected subnets' : ''}
+${device.type === 'switch' ? 'vlan 10,20,30,40\nspanning-tree mode rapid-pvst\nspanning-tree portfast default' : ''}
+${device.type === 'server' ? 'service snmpd restart\nservice packet_analyzer listen all\nports [80, 443, 8080]' : ''}
+!
+! Performance parameters on backup: CPU Load ${device.cpuUsage}%, RAM Usage ${device.ramUsage}%
+! SNMP Version enabled: ${device.snmpEnabled ? device.snmpVersion : 'none'}
+! End of configuration backup file.`;
+
+  // Deactivate other backups of the same device
+  deviceConfigs = deviceConfigs.map(c => c.deviceId === deviceId ? { ...c, active: false } : c);
+
+  const newConfig: DeviceConfig = {
+    id: "cfg-" + Date.now(),
+    deviceId,
+    deviceName: device.name,
+    deviceIp: device.ip,
+    version: nextVer,
+    timestamp: new Date().toISOString(),
+    protocol,
+    content: configContent,
+    backupBy: adminRole,
+    comment: comment || `On-demand telemetry config backup via ${protocol}.`,
+    active: true
+  };
+
+  deviceConfigs.unshift(newConfig);
+
+  // Add system log
+  systemLogs.unshift({
+    id: "log-backup-event-" + Date.now(),
+    timestamp: new Date().toISOString(),
+    severity: "INFO",
+    category: "SYSTEM",
+    device: device.name,
+    ip: device.ip,
+    message: `Configuration backup process succeeded. Retrieved local backup version ${nextVer} via protocol ${protocol} and saved to database.`
+  });
+
+  res.json(newConfig);
+});
+
+app.post("/api/configs/deploy", (req, res) => {
+  if (adminRole === 'Viewer') {
+    return res.status(403).json({ error: "Unauthorized. Viewers are in read-only mode." });
+  }
+
+  const { deviceId, content, comment } = req.body;
+  if (!deviceId || !content) {
+    return res.status(400).json({ error: "Device ID and configuration template body are required." });
+  }
+
+  const device = devices.find(d => d.id === deviceId);
+  if (!device) {
+    return res.status(404).json({ error: "Target network device not found." });
+  }
+
+  const prevConfigs = deviceConfigs.filter(c => c.deviceId === deviceId);
+  const nextVer = prevConfigs.length > 0 ? Math.max(...prevConfigs.map(c => c.version)) + 1 : 1;
+
+  // Set other configs to inactive
+  deviceConfigs = deviceConfigs.map(c => c.deviceId === deviceId ? { ...c, active: false } : c);
+
+  const newConfig: DeviceConfig = {
+    id: "cfg-" + Date.now(),
+    deviceId,
+    deviceName: device.name,
+    deviceIp: device.ip,
+    version: nextVer,
+    timestamp: new Date().toISOString(),
+    protocol: "SSH",
+    content: content,
+    backupBy: adminRole,
+    comment: comment || `Administrative configuration deployment.`,
+    active: true
+  };
+
+  deviceConfigs.unshift(newConfig);
+
+  // Add severe syslog to state device modifications
+  systemLogs.unshift({
+    id: "log-deploy-event-" + Date.now(),
+    timestamp: new Date().toISOString(),
+    severity: "WARNING",
+    category: "SYSTEM",
+    device: device.name,
+    ip: device.ip,
+    message: `Deploy configuration change target succeeded. Set config version ${nextVer} active. Physical interfaces re-scanning.`
+  });
+
+  res.json({ status: "success", config: newConfig });
+});
+
+
+// ==========================================
+// SNMP TRAPS & ALERTS MAPPING APIS
+// ==========================================
+app.get("/api/snmp/traps", (req, res) => {
+  res.json(receivedTraps);
+});
+
+app.get("/api/snmp/mappings", (req, res) => {
+  res.json(TRAP_MAPPINGS);
+});
+
+app.post("/api/snmp/traps/trigger", (req, res) => {
+  if (adminRole === 'Viewer') {
+    return res.status(403).json({ error: "Viewer role are forbidden from triggering SNMP traps." });
+  }
+
+  const { deviceId, deviceIp, oid, message, version } = req.body;
+  if (!oid) {
+    return res.status(400).json({ error: "SNMP Trap enterprise OID identifier is required." });
+  }
+
+  let mappedDevice = devices.find(d => d.id === deviceId || d.ip === deviceIp);
+  const ip = mappedDevice ? mappedDevice.ip : (deviceIp || "10.0.99.99");
+  const name = mappedDevice ? mappedDevice.name : `Unregistered-Node`;
+
+  const mapping = TRAP_MAPPINGS.find(m => m.oid === oid) || {
+    name: "genericEnterpriseTrap",
+    description: "Enterprise OID mapping unidentified in general MIB library.",
+    defaultSeverity: "medium" as AlertSeverity
+  };
+
+  const trapMsg = message || `SNMP trap received: trigger condition met. Enterprise OID: ${oid}`;
+  const trapId = "trap-" + Date.now();
+  
+  const newTrap: SNMPTrap = {
+    id: trapId,
+    timestamp: new Date().toISOString(),
+    deviceId: mappedDevice ? mappedDevice.id : undefined,
+    deviceIp: ip,
+    deviceName: name,
+    severity: mapping.defaultSeverity,
+    version: version || "v2c",
+    enterpriseOid: oid,
+    message: trapMsg,
+    parsedDescription: mapping.description
+  };
+
+  receivedTraps.unshift(newTrap);
+
+  // Create corresponding alert in Alerting & Notification System
+  const alertId = "alert-trap-" + Date.now();
+  const trapAlert: NetworkAlert = {
+    id: alertId,
+    timestamp: new Date().toISOString(),
+    severity: mapping.defaultSeverity,
+    source: name,
+    message: `[SNMP-TRAP ${version.toUpperCase()}] Event OID: ${mapping.name}. Details: ${trapMsg}. Mapped Definition: ${mapping.description}`,
+    type: mapping.defaultSeverity === "critical" ? "downtime" : (mapping.defaultSeverity === "high" ? "security" : "resource"),
+    acknowledged: false
+  };
+  alerts.unshift(trapAlert);
+
+  // Inject Syslog entry as well
+  systemLogs.unshift({
+    id: "log-trap-" + Date.now(),
+    timestamp: new Date().toISOString(),
+    severity: mapping.defaultSeverity === "critical" ? "CRITICAL" : (mapping.defaultSeverity === "high" ? "WARNING" : "INFO"),
+    category: "SYSTEM",
+    device: name,
+    ip,
+    message: `[SNMP-TRAP-${version.toUpperCase()} RECEIVED] OID: ${oid} (${mapping.name}). Description: ${mapping.description}. Payload: ${trapMsg}`
+  });
+
+  res.json({ status: "success", trap: newTrap, alert: trapAlert });
+});
+
 
 // 8. GEMINI AI SECURE SERVICE HANDLERS
 

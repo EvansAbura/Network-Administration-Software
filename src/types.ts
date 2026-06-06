@@ -102,3 +102,37 @@ export interface ThresholdConfig {
   emailRecipient: string;
   smsRecipient: string;
 }
+
+export interface DeviceConfig {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  deviceIp: string;
+  version: number;
+  timestamp: string;
+  protocol: 'SSH' | 'Telnet' | 'TFTP' | 'NETCONF';
+  content: string;
+  backupBy: string;
+  comment?: string;
+  active: boolean;
+}
+
+export interface SNMPTrap {
+  id: string;
+  timestamp: string;
+  deviceId?: string;
+  deviceIp: string;
+  deviceName: string;
+  severity: AlertSeverity;
+  version: 'v1' | 'v2c' | 'v3';
+  enterpriseOid: string;
+  message: string;
+  parsedDescription: string;
+}
+
+export interface TrapOidMapping {
+  oid: string;
+  name: string;
+  description: string;
+  defaultSeverity: AlertSeverity;
+}
