@@ -1,20 +1,13 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://www.linkedin.com/in/evans-abura-a1b69a206/" />
-</div>
+a production-grade, enterprise-level Network Administration and Monitoring System designed for IT administrators to manage, monitor, secure, and troubleshoot complex network infrastructures in real time.
 
-# Run and deploy your app
+The system should be modular, scalable, and built using modern software architecture principles (microservices preferred or modular monolith if simpler implementation is required).
 
-This contains everything you need to run your app locally.
+1. Core Objective
 
-View your app in AI Studio: https://www.linkedin.com/in/evans-abura-a1b69a206/
+Develop a centralized Network Operations Dashboard (NOC system) that allows administrators to:
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your  API key
-3. Run the app:
-   `npm run dev`
+Monitor network health in real time
+Manage connected devices across LAN/WAN
+Detect and respond to network anomalies
+Control access and enforce security policies
+Visualize network topology dynamically
